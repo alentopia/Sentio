@@ -65,6 +65,9 @@ fun HomeScreen(
             ViewCalendarButton(onClick = { navController?.navigate("mood_calendar") })
             // Latest Mood
             LatestMoodSection(listJurnal = listJurnal)
+            // Peta mood
+            //ViewMoodMapButton(onClick = { navController?.navigate("mood_map") })
+
         }
     }
 }
@@ -97,7 +100,7 @@ fun GreetingSection() {
     }
 }
 
-// --- 🧠 LATEST MOOD SECTION ---
+// LATEST MOOD SECTION
 @Composable
 fun LatestMoodSection(listJurnal: List<JurnalModel>) {
     val latestJournal = listJurnal.lastOrNull()
@@ -197,7 +200,7 @@ fun StatCard(icon: String, value: String, label: String, modifier: Modifier = Mo
     }
 }
 
-// --- Mood Stability Card ---
+// Mood Stability Card
 @Composable
 fun MoodStabilityCard() {
     val targetValue = 64
@@ -324,6 +327,50 @@ fun ViewCalendarButton(onClick: () -> Unit) {
             Icon(
                 imageVector = Icons.Default.ArrowForward,
                 contentDescription = "Go to Calendar",
+                tint = Color(0xFF8B4CFC)
+            )
+        }
+    }
+}
+@Composable
+fun ViewMoodMapButton(onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "📍", fontSize = 28.sp)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "View Mood Map",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color(0xFF4A3AFF)
+                    )
+                    Text(
+                        text = "See where your emotions happened 🌍",
+                        fontSize = 13.sp,
+                        color = Color(0xFF7D7A8B)
+                    )
+                }
+            }
+
+            Icon(
+                imageVector = Icons.Default.ArrowForward,
+                contentDescription = "Go to Map",
                 tint = Color(0xFF8B4CFC)
             )
         }

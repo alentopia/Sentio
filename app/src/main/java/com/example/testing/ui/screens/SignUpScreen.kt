@@ -22,11 +22,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 
 @Composable
 fun SignUpScreen(navController: NavController) {
     val firebaseAuth = FirebaseAuth.getInstance()
+    val db = FirebaseFirestore.getInstance()
     val scope = rememberCoroutineScope()
 
     var email by remember { mutableStateOf("") }
@@ -211,13 +213,33 @@ fun SignUpScreen(navController: NavController) {
                                     scope.launch {
                                         firebaseAuth.createUserWithEmailAndPassword(email, password)
                                             .addOnCompleteListener { task ->
-                                                isLoading = false
                                                 if (task.isSuccessful) {
-                                                    // ✅ navigasi ke signin + argumen untuk snackbar
-                                                    navController.navigate("signin?created=true") {
-                                                        popUpTo("signup") { inclusive = true }
-                                                    }
+                                                    val userId = firebaseAuth.currentUser?.uid ?: return@addOnCompleteListener
+
+                                                    // Simpan profile ke Firestore
+                                                    val userProfile = hashMapOf(
+                                                        "email" to email,
+                                                        "name" to "",
+                                                        "phone" to "",
+                                                        "profileImage" to "",
+                                                        "createdAt" to com.google.firebase.Timestamp.now(),
+                                                        "updatedAt" to com.google.firebase.Timestamp.now()
+                                                    )
+
+                                                    db.collection("users").document(userId).set(userProfile)
+                                                        .addOnSuccessListener {
+                                                            isLoading = false
+                                                            // ✅ navigasi ke signin + argumen untuk snackbar
+                                                            navController.navigate("signin?created=true") {
+                                                                popUpTo("signup") { inclusive = true }
+                                                            }
+                                                        }
+                                                        .addOnFailureListener {
+                                                            isLoading = false
+                                                            errorMessage = "Failed to create profile"
+                                                        }
                                                 } else {
+                                                    isLoading = false
                                                     errorMessage = task.exception?.message
                                                         ?: "Registration failed. Try again."
                                                 }

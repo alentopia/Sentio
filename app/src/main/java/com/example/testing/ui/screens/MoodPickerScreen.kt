@@ -1,11 +1,17 @@
 package com.example.testing.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
+import android.Manifest
+import android.app.Activity
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -16,64 +22,96 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Fill
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
-import kotlinx.coroutines.delay
+import com.example.testing.ml.TFLiteMoodClassifier
 import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
+
+// ========================================================
+// CAMERA PERMISSION HELPER
+// ========================================================
+fun requestCameraPermission(context: android.content.Context, activity: Activity): Boolean {
+    return if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+        != PackageManager.PERMISSION_GRANTED
+    ) {
+        ActivityCompat.requestPermissions(
+            activity,
+            arrayOf(Manifest.permission.CAMERA),
+            1001
+        )
+        false
+    } else {
+        true
+    }
+}
+
+
+// MOOD PICKER SCREEN
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun MoodPickerScreen(
     navController: NavController? = null,
     onContinue: (String, String) -> Unit
 ) {
-    //variabel dan  data awal
-    val moods = listOf("Angry", "Sad", "Neutral", "Happy", "Loved")
-    val emojis = listOf("😡", "😔", "😐", "😊", "😍")
+    val moods = listOf("Angry", "Fear", "Sad", "Happy", "Surprise", "Neutral")
+
+    val emojis = listOf("😡", "😨", "😢", "😊", "😲", "😐")
     val colors = listOf(
-        Color(0xFFFF9AA2),
-        Color(0xFFA5D8FF),
-        Color(0xFFCFC9FF),
-        Color(0xFFB8F2E6),
-        Color(0xFFFFB5E8)
+        Color(0xFFFF9AA2), // Angry
+        Color(0xFFB39DDB), // Fear
+        Color(0xFFA5D8FF), // Sad
+        Color(0xFFFFE29A), // Happy
+        Color(0xFFFFC4E4), // Surprise
+        Color(0xFFCFC9FF)  // Neutral
     )
 
     fun Float.toRad(): Float = (this * (PI / 180f)).toFloat()
-    val sweep = 360f / moods.size //ini untuk sudut setiap segmen  roda, karena satu roda full kan lingkaran jadi 360
-    val rotation = remember { Animatable(0f) } // nilai animasi untuk rotasi roda (supaya bisa dirotasi halus).
-    val coroutineScope = rememberCoroutineScope()
-    var selectedIndex by remember { mutableStateOf(2) } //indeks mood yang sedang dipilih
-    var lastAngle by remember { mutableStateOf(0f) }
-    var showCameraPopup by remember { mutableStateOf(false) } //tampilin popup camera
 
+    val sweep = 360f / moods.size
+    val rotation = remember { Animatable(0f) }
+    val coroutineScope = rememberCoroutineScope()
+
+    var selectedIndex by remember { mutableStateOf(2) }
+    var showCameraPopup by remember { mutableStateOf(false) }
+    var lastAngle by remember { mutableStateOf(0f) }
+
+    val context = LocalContext.current
+    val activity = context as Activity
+
+
+    // UI MAIN
     Box(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 24.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Back
+
+        // Back Button
         IconButton(
             onClick = { navController?.navigate("journal_list") },
             modifier = Modifier
@@ -83,9 +121,10 @@ fun MoodPickerScreen(
             Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color(0xFF8B4CFC))
         }
 
-        //  Gesture rotasi
+
+        // Wheel Gesture
         val gestureModifier = Modifier.pointerInput(Unit) {
-            detectDragGestures( //jd klo diteken dia ngedetect
+            detectDragGestures(
                 onDragStart = { offset ->
                     lastAngle = atan2(
                         offset.y - size.height / 2,
@@ -97,23 +136,24 @@ fun MoodPickerScreen(
                         change.position.y - size.height / 2,
                         change.position.x - size.width / 2
                     ) * (180f / PI).toFloat()
-                    val delta = currentAngle - lastAngle // ngehitung perbedaaan sudut lama sama baru
+                    val delta = currentAngle - lastAngle
                     lastAngle = currentAngle
                     coroutineScope.launch {
-                        rotation.snapTo(rotation.value + delta) //trus nambahin hasilny ke sudut baru
+                        rotation.snapTo(rotation.value + delta)
                     }
                 },
                 onDragEnd = {
                     coroutineScope.launch {
                         val normalized = ((rotation.value % 360) + 360) % 360
                         val index = ((normalized + sweep / 2) / sweep).toInt() % moods.size
-                        selectedIndex = (moods.size - index) % moods.size //  dia nentuin mood terdekat berdasarkan rotasi terakhir
+                        selectedIndex = (moods.size - index) % moods.size
                     }
                 }
             )
         }
 
-        //  Mood Wheel
+
+        // Mood Wheel
         Canvas(
             modifier = Modifier
                 .size(310.dp)
@@ -133,9 +173,10 @@ fun MoodPickerScreen(
                 )
 
                 val middle = startAngle + sweep / 2
-                val rad = middle.toFloat().toRad()
-                val x = (size.width / 2 + cos(rad) * (radius * 0.7f))
-                val y = (size.height / 2 + sin(rad) * (radius * 0.7f))
+                val rad = middle.toRad()
+
+                val x = size.width / 2 + cos(rad) * radius * 0.7f
+                val y = size.height / 2 + sin(rad) * radius * 0.7f
 
                 drawContext.canvas.nativeCanvas.drawText(
                     emojis[index],
@@ -147,12 +188,13 @@ fun MoodPickerScreen(
                         isAntiAlias = true
                     }
                 )
+
                 startAngle += sweep
             }
-
         }
 
-        //  Pointer
+
+        // Pointer
         Canvas(
             modifier = Modifier
                 .size(300.dp)
@@ -160,6 +202,7 @@ fun MoodPickerScreen(
         ) {
             val cx = size.width / 2
             val ty = size.height / 2 - (size.minDimension / 2.15f) - 45f
+
             val path = Path().apply {
                 moveTo(cx - 20f, ty)
                 arcTo(Rect(cx - 20f, ty - 20f, cx + 20f, ty + 20f), 180f, 180f, false)
@@ -169,7 +212,8 @@ fun MoodPickerScreen(
             drawPath(path, Color(0xFF8B4CFC))
         }
 
-        //  Teks mood
+
+        // Mood text
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
@@ -178,38 +222,27 @@ fun MoodPickerScreen(
         ) {
             Text(text = emojis[selectedIndex], fontSize = 60.sp)
             Text(
-                text = "You feel ${moods[selectedIndex]} today!", //menampilkan emoji besar dan mood yang sesuai saam apa yang ada di roda
+                text = "You feel ${moods[selectedIndex]} today!",
                 fontSize = 18.sp,
                 color = Color.DarkGray,
                 fontWeight = FontWeight.Medium
             )
         }
 
-        //  Tombol
+
+        // Bottom Buttons
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 40.dp)
         ) {
-            // Mood
             Button(
                 onClick = {
-                    showCameraPopup = true
-                    coroutineScope.launch {
-                        delay(2000)
-                        showCameraPopup = false
-                        val detectedIndex = 3
-                        selectedIndex = detectedIndex
-                        val targetRotation = -detectedIndex * sweep
-                        rotation.animateTo(
-                            targetValue = targetRotation,
-                            animationSpec = tween(900)
-                        )
+                    if (requestCameraPermission(context, activity)) {
+                        showCameraPopup = true
                     }
                 },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Transparent
-                ),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                 contentPadding = PaddingValues(),
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier
@@ -222,7 +255,9 @@ fun MoodPickerScreen(
                         ),
                         shape = RoundedCornerShape(24.dp)
                     )
-            ) { Text("Scan Your Mood", color = Color.White, fontWeight = FontWeight.Bold) }
+            ) {
+                Text("Scan Your Mood", color = Color.White, fontWeight = FontWeight.Bold)
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -234,56 +269,126 @@ fun MoodPickerScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 32.dp)
                     .height(50.dp)
-            ) { Text("Continue ➜", color = Color.White) }
+            ) {
+                Text("Continue ➜", color = Color.White)
+            }
         }
     }
-    CameraPopup(showCameraPopup = showCameraPopup)
+
+
+
+    // CAMERA POPUP
+    CameraPopup(
+        showCameraPopup = showCameraPopup,
+        onClose = { showCameraPopup = false },
+        onImageCaptured = { bitmap ->
+            val classifier = TFLiteMoodClassifier(context)
+
+            val detectedIndex = classifier.predict(bitmap)
+            selectedIndex = detectedIndex
+
+            coroutineScope.launch {
+                rotation.animateTo(-detectedIndex * sweep, tween(900))
+            }
+
+            showCameraPopup = false
+        }
+    )
 }
 
+// CAMERA POPUP COMPOSABLE
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
-fun CameraPopup(showCameraPopup: Boolean) {
-    AnimatedVisibility(
-        visible = showCameraPopup,
-        enter = fadeIn(animationSpec = tween(250)) +
-                scaleIn(initialScale = 0.8f, animationSpec = tween(300)),
-        exit = fadeOut(animationSpec = tween(200)) +
-                scaleOut(targetScale = 0.8f, animationSpec = tween(200))
+fun CameraPopup(
+    showCameraPopup: Boolean,
+    onClose: () -> Unit,
+    onImageCaptured: (Bitmap) -> Unit
+) {
+    if (!showCameraPopup) return
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f)),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
+        Card(
             modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.45f)),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth(0.85f)
+                .height(420.dp),
+            shape = RoundedCornerShape(24.dp)
         ) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(28.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
-                modifier = Modifier
-                    .fillMaxWidth(0.8f)
-                    .height(190.dp)
-                    .shadow(12.dp, RoundedCornerShape(28.dp))
-            ) {
-                Column(
+
+            Box(modifier = Modifier.fillMaxSize()) {
+
+                AndroidView(
+                    factory = { context ->
+                        val previewView = PreviewView(context)
+                        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+
+                        cameraProviderFuture.addListener({
+                            val cameraProvider = cameraProviderFuture.get()
+
+                            val preview = Preview.Builder().build().also {
+                                it.setSurfaceProvider(previewView.surfaceProvider)
+                            }
+
+                            val imageCapture = ImageCapture.Builder()
+                                .setTargetRotation(previewView.display.rotation)
+                                .build()
+
+                            cameraProvider.unbindAll()
+
+                            cameraProvider.bindToLifecycle(
+                                lifecycleOwner,
+                                CameraSelector.DEFAULT_FRONT_CAMERA,
+                                preview,
+                                imageCapture
+                            )
+
+                            previewView.setOnClickListener {
+                                val output = ImageCapture.OutputFileOptions
+                                    .Builder(context.cacheDir.resolve("photo.jpg"))
+                                    .build()
+
+                                imageCapture.takePicture(
+                                    output,
+                                    ContextCompat.getMainExecutor(context),
+                                    object : ImageCapture.OnImageSavedCallback {
+                                        override fun onImageSaved(result: ImageCapture.OutputFileResults) {
+                                            val bmp = BitmapFactory.decodeFile(
+                                                context.cacheDir.resolve("photo.jpg").path
+                                            )
+                                            onImageCaptured(bmp)
+                                        }
+
+                                        override fun onError(exc: ImageCaptureException) {
+                                            exc.printStackTrace()
+                                        }
+                                    }
+                                )
+                            }
+
+                        }, ContextCompat.getMainExecutor(context))
+
+                        previewView
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                // Close button
+                IconButton(
+                    onClick = onClose,
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CameraAlt,
-                        contentDescription = null,
-                        tint = Color(0xFF8B4CFC),
-                        modifier = Modifier.size(60.dp)
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Text(
-                        text = "Detecting your mood...",
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF8B4CFC)
+                        Icons.Default.ArrowBack,
+                        contentDescription = "Close",
+                        tint = Color.White
                     )
                 }
             }

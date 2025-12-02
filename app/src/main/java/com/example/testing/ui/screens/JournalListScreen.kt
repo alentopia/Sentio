@@ -43,8 +43,11 @@ fun JournalListScreen(
     added: Boolean = false,
     edited: Boolean = false
 ) {
+    var expanded by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var searchQuery by remember { mutableStateOf("") }
+    var sortType by remember { mutableStateOf("Newest") }
+    var showSortDialog by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -57,10 +60,26 @@ fun JournalListScreen(
         }
     }
 
-
-    //  State buat dialog konfirmasi delete
+    //  Delete dialog
     var showDeleteDialog by remember { mutableStateOf(false) }
     var selectedDeleteIndex by remember { mutableStateOf(-1) }
+
+    //  FILTER + SORT LIST
+    val filteredList = listJurnal.filter { j ->
+        j.title.lowercase().startsWith(searchQuery.lowercase()) ||
+                j.content.lowercase().startsWith(searchQuery.lowercase()) ||
+                j.mood.lowercase().startsWith(searchQuery.lowercase()) ||
+                j.location.lowercase().startsWith(searchQuery.lowercase())
+    }
+
+
+    val sortedList = when (sortType) {
+        "Newest" -> filteredList.sortedByDescending { it.date }
+        "Oldest" -> filteredList.sortedBy { it.date }
+        "A-Z" -> filteredList.sortedBy { it.title.lowercase() }
+        "Z-A" -> filteredList.sortedByDescending { it.title.lowercase() }
+        else -> filteredList
+    }
 
     Box(
         modifier = Modifier
@@ -73,7 +92,8 @@ fun JournalListScreen(
                 .fillMaxSize()
                 .padding(top = 12.dp)
         ) {
-            // Header
+
+            // HEADER
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -101,13 +121,13 @@ fun JournalListScreen(
                 }
             }
 
-            // Kalender Mingguan
+            // WEEK CALENDAR
             CalendarJournal(
                 selectedDate = selectedDate,
                 onDateSelected = { selectedDate = it }
             )
 
-            // Search bar
+            // SEARCH + SORT BUTTON
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -115,12 +135,53 @@ fun JournalListScreen(
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
                 trailingIcon = {
-                    IconButton(onClick = { }) {
-                        Icon(
-                            imageVector = Icons.Default.FilterList,
-                            contentDescription = "Filter Journals",
-                            tint = Color(0xFF8B4CFC)
-                        )
+                    Box {
+                        IconButton(onClick = { expanded = true }) {
+                            Icon(
+                                imageVector = Icons.Default.FilterList,
+                                contentDescription = "Sort Journals",
+                                tint = Color(0xFF8B4CFC)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false },
+                            modifier = Modifier.background(Color.White)
+                        ) {
+
+                            DropdownMenuItem(
+                                text = { Text("Newest") },
+                                onClick = {
+                                    sortType = "Newest"
+                                    expanded = false
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = { Text("Oldest") },
+                                onClick = {
+                                    sortType = "Oldest"
+                                    expanded = false
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = { Text("A-Z") },
+                                onClick = {
+                                    sortType = "A-Z"
+                                    expanded = false
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = { Text("Z-A") },
+                                onClick = {
+                                    sortType = "Z-A"
+                                    expanded = false
+                                }
+                            )
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -132,14 +193,14 @@ fun JournalListScreen(
                 )
             )
 
-            // Daftar Journal
-            if (listJurnal.isEmpty()) {
+            // JOURNAL LIST
+            if (sortedList.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "You haven’t written any journal yet.\nStart your first one today! ✨",
+                        text = "No journals found.\nTry writing one today! ✨",
                         color = Color(0xFF6A5ACD),
                         fontSize = 15.sp,
                         textAlign = TextAlign.Center
@@ -152,7 +213,7 @@ fun JournalListScreen(
                         .fillMaxWidth()
                         .weight(1f)
                 ) {
-                    itemsIndexed(listJurnal) { index, journal ->
+                    itemsIndexed(sortedList) { index, journal ->
                         JournalItemCard(
                             journal = journal,
                             onClick = {
@@ -170,7 +231,7 @@ fun JournalListScreen(
             }
         }
 
-        // FAB tambah
+        // Floating Button
         FloatingActionButton(
             onClick = onAddClick,
             containerColor = Color(0xFF8B4CFC),
@@ -185,7 +246,7 @@ fun JournalListScreen(
             )
         }
 
-        // Snackbar tampil di bawah
+        // Snackbar
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
@@ -212,21 +273,59 @@ fun JournalListScreen(
             }
         )
 
+        // SORT DIALOG
+        if (showSortDialog) {
+            AlertDialog(
+                onDismissRequest = { showSortDialog = false },
+                confirmButton = {},
+                text = {
+                    Column {
+                        Text("Sort By", fontWeight = FontWeight.Bold)
 
-        //  Dialog konfirmasi delete
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        val options = listOf("Newest", "Oldest", "A-Z", "Z-A")
+
+                        options.forEach { option ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        sortType = option
+                                        showSortDialog = false
+                                    }
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                RadioButton(
+                                    selected = sortType == option,
+                                    onClick = {
+                                        sortType = option
+                                        showSortDialog = false
+                                    }
+                                )
+                                Text(option, modifier = Modifier.padding(start = 8.dp))
+                            }
+                        }
+                    }
+                }
+            )
+        }
+
+        // DELETE DIALOG
         if (showDeleteDialog && selectedDeleteIndex != -1) {
             Dialog(
                 onDismissRequest = { showDeleteDialog = false },
                 properties = DialogProperties(
                     dismissOnBackPress = true,
                     dismissOnClickOutside = true,
-                    usePlatformDefaultWidth = false // biar background gelapnya full
+                    usePlatformDefaultWidth = false
                 )
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.6f)), // full dark overlay
+                        .background(Color.Black.copy(alpha = 0.6f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Card(
@@ -242,14 +341,14 @@ fun JournalListScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "Delete Journal?",
+                                "Delete Journal?",
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF4A4458),
                                 fontSize = 18.sp
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Are you sure you want to delete this?\n Remember — every feeling matters. 💜",
+                                "Are you sure you want to delete this?\nRemember — every feeling matters. 💜",
                                 color = Color(0xFF666666),
                                 fontSize = 14.sp,
                                 textAlign = TextAlign.Center
@@ -267,11 +366,14 @@ fun JournalListScreen(
                                     onClick = {
                                         val index = selectedDeleteIndex
                                         showDeleteDialog = false
-                                        if (index in listJurnal.indices) {
-                                            onDelete(index)
-                                            coroutineScope.launch {
-                                                snackbarHostState.showSnackbar("Your journal has been deleted")
-                                            }
+                                        if (index in sortedList.indices) {
+                                            val realIndex =
+                                                listJurnal.indexOf(sortedList[index])
+                                            if (realIndex != -1) onDelete(realIndex)
+                                        }
+
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar("Your journal has been deleted")
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(
@@ -290,7 +392,6 @@ fun JournalListScreen(
         }
     }
 }
-
 
 
 @Composable

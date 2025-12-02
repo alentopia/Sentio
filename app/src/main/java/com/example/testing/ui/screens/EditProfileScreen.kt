@@ -6,8 +6,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -26,24 +28,55 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 @Composable
 fun EditProfileScreen(navController: NavController) {
-    val firebaseAuth = FirebaseAuth.getInstance() //ini nanti tunggu databse hehe
+    val firebaseAuth = FirebaseAuth.getInstance()
+    val db = FirebaseFirestore.getInstance()
+    val storage = FirebaseStorage.getInstance()
+    val scope = rememberCoroutineScope()
 
     // State untuk foto profil
-    var profileImage by remember { mutableStateOf<Uri?>(null) }
+    var profileImageUri by remember { mutableStateOf<Uri?>(null) }
+    var profileImageUrl by remember { mutableStateOf("") }
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? -> profileImage = uri }
+    ) { uri: Uri? ->
+        if (uri != null) {
+            profileImageUri = uri
+        }
+    }
 
     // State data profil
-    var name by remember { mutableStateOf("User") }
-    var email by remember { mutableStateOf("user123@email.com") }
-    var phone by remember { mutableStateOf("+62 812 3456 7890") }
+    var name by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
     var showDialog by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Load user profile saat screen dibuka
+    LaunchedEffect(Unit) {
+        val userId = firebaseAuth.currentUser?.uid ?: return@LaunchedEffect
+        try {
+            val document = db.collection("users").document(userId).get().await()
+            if (document.exists()) {
+                // Ambil data profil dari Firestore dan set ke state
+                name = document.getString("name") ?: ""
+                email = document.getString("email") ?: ""
+                phone = document.getString("phone") ?: ""
+                profileImageUrl = document.getString("profileImage") ?: ""
+            }
+        } catch (e: Exception) {
+            errorMessage = "Failed to load profile"
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -51,7 +84,9 @@ fun EditProfileScreen(navController: NavController) {
             .padding(horizontal = 24.dp, vertical = 16.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -75,11 +110,12 @@ fun EditProfileScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            //  Foto profil
+            // Foto profil
             Box(contentAlignment = Alignment.BottomEnd) {
                 Image(
                     painter = rememberAsyncImagePainter(
-                        model = profileImage ?: "https://cdn-icons-png.flaticon.com/512/847/847969.png"
+                        model = profileImageUri ?: (profileImageUrl.takeIf { it.isNotEmpty() }
+                            ?: "https://cdn-icons-png.flaticon.com/512/847/847969.png")
                     ),
                     contentDescription = "Profile Picture",
                     contentScale = ContentScale.Crop,
@@ -127,6 +163,7 @@ fun EditProfileScreen(navController: NavController) {
                     )
                     Spacer(modifier = Modifier.height(20.dp))
 
+                    // Full Name
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
@@ -141,8 +178,9 @@ fun EditProfileScreen(navController: NavController) {
                         )
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))  // Add spacing between fields
 
+                    // Email Address
                     OutlinedTextField(
                         value = email,
                         onValueChange = { email = it },
@@ -157,8 +195,9 @@ fun EditProfileScreen(navController: NavController) {
                         )
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))  // Add spacing between fields
 
+                    // Phone Number
                     OutlinedTextField(
                         value = phone,
                         onValueChange = { phone = it },
@@ -173,7 +212,7 @@ fun EditProfileScreen(navController: NavController) {
                         )
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))  // Add spacing between fields
 
                     //  Ganti Password
                     OutlinedTextField(
@@ -199,28 +238,51 @@ fun EditProfileScreen(navController: NavController) {
                             focusedLabelColor = Color(0xFF8B4CFC)
                         )
                     )
+
+                    Spacer(modifier = Modifier.height(16.dp))  // Add spacing between fields
+
+                    // Error Message
+                    if (errorMessage != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            errorMessage ?: "",
+                            color = Color.Red,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
                 }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // tombol Simpan
+            // Tombol Simpan
             Button(
                 onClick = { showDialog = true },
+                enabled = !isLoading,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B4CFC)),
                 shape = RoundedCornerShape(30.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(55.dp)
             ) {
-                Icon(Icons.Default.Save, contentDescription = "Save", tint = Color.White)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Save Changes", color = Color.White, fontWeight = FontWeight.Bold)
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(Icons.Default.Save, contentDescription = "Save", tint = Color.White)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Save Changes", color = Color.White, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
 
-    //  Dialog Konfirmasi
+    // Dialog Konfirmasi
     if (showDialog) {
         Box(
             modifier = Modifier
@@ -266,10 +328,45 @@ fun EditProfileScreen(navController: NavController) {
 
                         Button(
                             onClick = {
-                                showDialog = false
-                                // Navigate balik ke Profile dengan parameter edited
-                                navController.navigate("profile?edited=true") {
-                                    popUpTo("profile") { inclusive = true }
+                                isLoading = true
+                                scope.launch {
+                                    try {
+                                        val userId = firebaseAuth.currentUser?.uid ?: return@launch
+
+                                        var finalImageUrl = profileImageUrl
+
+                                        // Upload image jika ada gambar baru
+                                        if (profileImageUri != null) {
+                                            val storageRef = storage.reference.child("profile_images/$userId.jpg")
+                                            storageRef.putFile(profileImageUri!!).await()
+                                            finalImageUrl = storageRef.downloadUrl.await().toString()
+                                        }
+
+                                        // Update profile data ke Firestore
+                                        val updates = mapOf(
+                                            "name" to name,
+                                            "email" to email,
+                                            "phone" to phone,
+                                            "profileImage" to finalImageUrl,
+                                            "updatedAt" to com.google.firebase.Timestamp.now()
+                                        )
+
+                                        db.collection("users").document(userId).update(updates).await()
+
+                                        // Update password jika ada
+                                        if (password.isNotBlank()) {
+                                            firebaseAuth.currentUser?.updatePassword(password)?.await()
+                                        }
+
+                                        isLoading = false
+                                        showDialog = false
+                                        navController.navigate("profile") {
+                                            popUpTo("editprofile") { inclusive = true }
+                                        }
+                                    } catch (e: Exception) {
+                                        isLoading = false
+                                        errorMessage = e.message ?: "Failed to save profile"
+                                    }
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B4CFC)),

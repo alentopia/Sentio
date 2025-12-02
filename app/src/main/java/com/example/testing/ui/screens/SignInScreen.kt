@@ -26,12 +26,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun SignInScreen(navController: NavController, created: Boolean = false) {
     val firebaseAuth = FirebaseAuth.getInstance()
+    val db = FirebaseFirestore.getInstance()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -58,8 +60,6 @@ fun SignInScreen(navController: NavController, created: Boolean = false) {
             }
         }
     }
-
-
 
     // Background
     Box(
@@ -192,54 +192,54 @@ fun SignInScreen(navController: NavController, created: Boolean = false) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                    // Stay Logged In + Forgot Password
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        //  Animated Checkbox
-                        Box(
-                            modifier = Modifier
-                                .size(22.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (stayLoggedIn) Color(0xFF7E63FF)
-                                    else Color.LightGray.copy(alpha = 0.4f)
-                                )
-                                .clickable { stayLoggedIn = !stayLoggedIn },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            //  AnimatedVisibility tetap dalam konteks @Composable
-                            androidx.compose.animation.AnimatedVisibility(
-                                visible = stayLoggedIn,
-                                enter = androidx.compose.animation.scaleIn(
-                                    animationSpec = androidx.compose.animation.core.tween(
-                                        durationMillis = 200
+                        // Stay Logged In + Forgot Password
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            //  Animated Checkbox
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (stayLoggedIn) Color(0xFF7E63FF)
+                                        else Color.LightGray.copy(alpha = 0.4f)
                                     )
-                                ) + androidx.compose.animation.fadeIn(
-                                    animationSpec = androidx.compose.animation.core.tween(
-                                        durationMillis = 200
-                                    )
-                                ),
-                                exit = androidx.compose.animation.scaleOut(
-                                    animationSpec = androidx.compose.animation.core.tween(
-                                        durationMillis = 200
-                                    )
-                                ) + androidx.compose.animation.fadeOut(
-                                    animationSpec = androidx.compose.animation.core.tween(
-                                        durationMillis = 200
-                                    )
-                                )
+                                    .clickable { stayLoggedIn = !stayLoggedIn },
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(14.dp)
-                                )
+                                //  AnimatedVisibility tetap dalam konteks @Composable
+                                androidx.compose.animation.AnimatedVisibility(
+                                    visible = stayLoggedIn,
+                                    enter = androidx.compose.animation.scaleIn(
+                                        animationSpec = androidx.compose.animation.core.tween(
+                                            durationMillis = 200
+                                        )
+                                    ) + androidx.compose.animation.fadeIn(
+                                        animationSpec = androidx.compose.animation.core.tween(
+                                            durationMillis = 200
+                                        )
+                                    ),
+                                    exit = androidx.compose.animation.scaleOut(
+                                        animationSpec = androidx.compose.animation.core.tween(
+                                            durationMillis = 200
+                                        )
+                                    ) + androidx.compose.animation.fadeOut(
+                                        animationSpec = androidx.compose.animation.core.tween(
+                                            durationMillis = 200
+                                        )
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
                             }
-                        }
 
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Stay Logged In", color = Color.Gray, fontSize = 13.sp)
-                    }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Stay Logged In", color = Color.Gray, fontSize = 13.sp)
+                        }
                         Text(
                             text = "Forgot Password?",
                             color = Color(0xFF7E63FF),
@@ -248,8 +248,7 @@ fun SignInScreen(navController: NavController, created: Boolean = false) {
                                 navController.navigate("forgotpassword")
                             }
                         )
-                }
-
+                    }
 
                     //  Login Button
                     Button(
@@ -261,6 +260,15 @@ fun SignInScreen(navController: NavController, created: Boolean = false) {
                                         .addOnCompleteListener { task ->
                                             isLoading = false
                                             if (task.isSuccessful) {
+                                                val userId = firebaseAuth.currentUser?.uid ?: return@addOnCompleteListener
+
+                                                // Update lastLogin di Firestore
+                                                val updates = mapOf(
+                                                    "lastLogin" to com.google.firebase.Timestamp.now()
+                                                )
+
+                                                db.collection("users").document(userId).update(updates)
+
                                                 if (stayLoggedIn) {
                                                     prefs.edit().apply {
                                                         putString("email", email)
@@ -313,7 +321,7 @@ fun SignInScreen(navController: NavController, created: Boolean = false) {
             snackbar = { snackbarData ->
                 Surface(
                     color = Color(0xFFE8F8F0).copy(alpha = 0.95f),
-                            shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Text(
                         text = snackbarData.visuals.message,
@@ -325,7 +333,5 @@ fun SignInScreen(navController: NavController, created: Boolean = false) {
                 }
             }
         )
-
     }
-
 }

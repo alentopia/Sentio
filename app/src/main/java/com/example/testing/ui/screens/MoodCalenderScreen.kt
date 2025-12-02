@@ -43,16 +43,16 @@ fun MoodCalendarScreen(navController: NavController) {
     val dayOfWeekOffset = (firstDayOfMonth.dayOfWeek.value - 1).coerceAtLeast(0) // ini tuh biar dia gak ada 0 nya gitu sih
 
     val moodColors = listOf(
-        Color(0xFFFF9AA2),
-        Color(0xFFA5D8FF),
-        Color(0xFFCFC9FF),
-        Color(0xFFCAFFBF),
-        Color(0xFFFFB5E8)
+        Color(0xFFFF9AA2), // Angry
+        Color(0xFFB39DDB), // Fear
+        Color(0xFFA5D8FF), // Sad
+        Color(0xFFFFE29A), // Happy
+        Color(0xFFFFC4E4), // Surprise
+        Color(0xFFCFC9FF)  // Neutral
     )
-
-    val emojis = listOf("😡", "😔", "😐", "😊", "😍")
-    val moodLabels = listOf("Angry", "Sad", "Neutral", "Happy", "Loved")
-    val moodCounts = listOf(60, 28, 55, 113, 86)
+    val emojis = listOf("😡", "😨", "😢", "😊", "😲", "😐")
+    val moodLabels = listOf("Angry", "Fear", "Sad", "Happy", "Surprise", "Neutral")
+    val moodCounts = listOf(60, 28, 55, 113, 86, 30)
 
     val randomJournalDays = remember(currentMonth) { (1..daysInMonth).shuffled().take(20) } //ini buat ngerandom mood colorsny
 
@@ -247,7 +247,7 @@ fun MoodCalendarScreen(navController: NavController) {
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Mostly you feel 😍 Loved! Keep glowing!",
+                        text = "Mostly you feel 😊 Happy! Keep glowing!",
                         color = Color(0xFF4B3A64),
                         fontWeight = FontWeight.Medium,
                         fontSize = 14.sp

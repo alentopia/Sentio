@@ -63,8 +63,8 @@ fun MainNavHost() {
                             currentRoute in listOf("home", "music", "mood_calendar")
 
                 if (showBottomNav) {
-                    BottomNavBar(navController = navController)
-                }
+                BottomNavBar(navController = navController)
+            }
             }
         ) { innerPadding ->
 
@@ -106,7 +106,6 @@ fun MainNavHost() {
                 }
 
                 composable("edit_profile") { EditProfileScreen(navController) }
-                composable("account_security") { AccountSecurityScreen(navController) }
                 composable("help_support") { HelpSupportScreen(navController) }
 
                 //  Journal List
@@ -134,7 +133,10 @@ fun MainNavHost() {
 
                 // Calendar
                 composable("mood_calendar") { MoodCalendarScreen(navController) }
-
+                // MoodMap
+                composable("mood_map") {
+                    MoodMapScreen(navController, listJurnal)
+                }
                 // Mood Picker ke Write Journal
                 composable("mood_picker") {
                     MoodPickerScreen(

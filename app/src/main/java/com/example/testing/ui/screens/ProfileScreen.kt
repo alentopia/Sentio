@@ -22,11 +22,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 
 @Composable
@@ -38,18 +38,33 @@ fun ProfileScreen(navController: NavController, edited: Boolean = false) {
     }
 
     val firebaseAuth = FirebaseAuth.getInstance()
+    val firestore = FirebaseFirestore.getInstance()
+    val currentUser = firebaseAuth.currentUser
+
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var userName by remember { mutableStateOf("Unknown User") }
+
+    // Load nama user dari Firestore
+    LaunchedEffect(currentUser) {
+        currentUser?.uid?.let { uid ->
+            firestore.collection("users").document(uid)
+                .get()
+                .addOnSuccessListener { document ->
+                    val name = document.getString("name") ?: ""
+                    userName = if (name.isNotBlank()) name else "Unknown User"
+                }
+        }
+    }
 
     // Snackbar setup
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
-    // Tampilkan snackbar sekali aja saat kembali dari edit_profile
+    // Show snackbar after edit profile
     LaunchedEffect(edited) {
         if (edited) {
             coroutineScope.launch {
                 snackbarHostState.showSnackbar("Your profile has been edited")
-                // Hapus query param biar gak tampil terus di halaman lain
                 navController.navigate("profile") {
                     popUpTo("profile") { inclusive = true }
                     launchSingleTop = true
@@ -62,65 +77,58 @@ fun ProfileScreen(navController: NavController, edited: Boolean = false) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = 24.dp, vertical = 16.dp)
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-            contentPadding = PaddingValues(top = 32.dp, bottom = 64.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(top = 24.dp, bottom = 64.dp)
         ) {
-            // Avatar Section
-            item {
-                Box(contentAlignment = Alignment.Center) {
-                    Box(
-                        modifier = Modifier
-                            .size(120.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFE9E1FF)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = rememberAsyncImagePainter(
-                                model = "https://cdn-icons-png.flaticon.com/512/847/847969.png"
-                            ),
-                            contentDescription = "Profile Picture",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(100.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF2D2D4F))
-                        )
-                    }
-                }
 
-                Spacer(modifier = Modifier.height(12.dp))
+            // ⭐ AVATAR SECTION FINAL
+            item {
+                val user = FirebaseAuth.getInstance().currentUser
+
+                // Foto profil besar
+                Image(
+                    painter = rememberAsyncImagePainter(
+                        model = user?.photoUrl
+                            ?: "https://cdn-icons-png.flaticon.com/512/847/847969.png"
+                    ),
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier
+                        .size(140.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Nama (dari Firestore)
                 Text(
-                    "USER",
+                    text = userName,
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
                     color = Color(0xFF2C2C2C)
                 )
-                Text(
-                    "user.hehehe@email.com | +62 812 3456 7890",
-                    color = Color(0xFF7A7A7A),
-                    fontSize = 15.sp
-                )
-                Spacer(modifier = Modifier.height(17.dp))
+
+                Spacer(modifier = Modifier.height(20.dp))
             }
 
-            //  Profile Settings
+            // Profile Settings
             item {
                 ProfileCard(
                     title = "Profile Settings",
                     options = listOf(
                         SettingItem(Icons.Default.Edit, "Edit Profile") {
                             navController.navigate("edit_profile")
-                        })
+                        }
+                    )
                 )
             }
 
-            // Support
+            // Support Section
             item {
                 ProfileCard(
                     title = "Support",
@@ -137,25 +145,26 @@ fun ProfileScreen(navController: NavController, edited: Boolean = false) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = { showLogoutDialog = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
-                    shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5A5A)),
+                    shape = RoundedCornerShape(22.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp)
+                        .height(55.dp)
+                        .padding(horizontal = 24.dp)
                 ) {
                     Icon(
                         Icons.Default.Logout,
                         contentDescription = null,
                         tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(22.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text("Logout", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         }
 
-        // Snackbar tampil di bawah layar
+        // Snackbar
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
@@ -178,20 +187,20 @@ fun ProfileScreen(navController: NavController, edited: Boolean = false) {
         )
     }
 
-    //  Logout Dialog Overlay
+    // Logout Dialog
     if (showLogoutDialog) {
         Dialog(
             onDismissRequest = { showLogoutDialog = false },
             properties = DialogProperties(
                 dismissOnBackPress = true,
                 dismissOnClickOutside = true,
-                usePlatformDefaultWidth = false // biar overlay-nya full-screen
+                usePlatformDefaultWidth = false
             )
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.6f)), // full dark background
+                    .background(Color.Black.copy(alpha = 0.6f)),
                 contentAlignment = Alignment.Center
             ) {
                 Card(
@@ -250,8 +259,8 @@ fun ProfileScreen(navController: NavController, edited: Boolean = false) {
     }
 }
 
-
-    @Composable
+// Profile Option Card
+@Composable
 fun ProfileCard(
     title: String,
     options: List<SettingItem>,
@@ -291,8 +300,7 @@ fun ProfileCard(
                             Text(item.title, color = Color(0xFF333333), fontSize = 15.sp)
                         }
                     }
-                    if (index < options.lastIndex)
-                        Divider(color = Color(0xFFECE6FF))
+                    if (index < options.lastIndex) Divider(color = Color(0xFFECE6FF))
                 }
             }
         }
