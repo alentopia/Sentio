@@ -14,23 +14,67 @@ import androidx.navigation.navArgument
 import com.example.spotifydemo.ui.MusicScreen
 import com.example.testing.JurnalModel
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun MainNavHost() {
+
     val navController = rememberNavController()
     val listJurnal = remember { mutableStateListOf<JurnalModel>() }
+
+    //  FIREBASE FUNCTIONS
+    fun saveJournalToFirestore(
+        emoji: String,
+        mood: String,
+        title: String,
+        content: String,
+        location: String,
+        date: String,
+        onSuccess: () -> Unit = {}
+    ) {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val db = FirebaseFirestore.getInstance()
+
+        val data = hashMapOf(
+            "emoji" to emoji,
+            "mood" to mood,
+            "title" to title,
+            "content" to content,
+            "location" to location,
+            "createdAt" to date
+        )
+
+        db.collection("users")
+            .document(uid)
+            .collection("journals")
+            .add(data)
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { it.printStackTrace() }
+    }
+
+    fun deleteJournalFromFirestore(journalId: String) {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val db = FirebaseFirestore.getInstance()
+
+        db.collection("users")
+            .document(uid)
+            .collection("journals")
+            .document(journalId)
+            .delete()
+    }
+
+    // SYSTEM UI CONTROLLER
     val systemUiController = rememberSystemUiController()
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
-    // Cek apakah sedang di halaman Auth (signin/signup/forgotpassword)
     val isAuthScreen = currentRoute?.startsWith("signin") == true ||
             currentRoute?.startsWith("signup") == true ||
             currentRoute?.startsWith("forgotpassword") == true
 
-    //  Ubah warna system bar sesuai halaman
     SideEffect {
         if (isAuthScreen) {
             systemUiController.setStatusBarColor(Color(0xFF7E63FF), darkIcons = false)
@@ -41,13 +85,13 @@ fun MainNavHost() {
         }
     }
 
-    // Gradient Background
     val gradientColors = if (isAuthScreen) {
-        listOf(Color(0xFF7E63FF), Color.White) // ungu dan putih untuk sign in, sign up, dan forgetpassword
+        listOf(Color(0xFF7E63FF), Color.White)
     } else {
-        listOf(Color(0xFFEED3F2), Color(0xFFD1E5FF)) // gradient gitu untuk yg lainny
+        listOf(Color(0xFFEED3F2), Color(0xFFD1E5FF))
     }
 
+    // UI ROOT
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -55,16 +99,14 @@ fun MainNavHost() {
     ) {
         Scaffold(
             containerColor = Color.Transparent,
-            // Bottom nav cuma muncul di halaman utama
             bottomBar = {
                 val showBottomNav =
                     currentRoute?.startsWith("journal_list") == true ||
                             currentRoute?.startsWith("profile") == true ||
-                            currentRoute in listOf("home", "music", "mood_calendar")
-
-                if (showBottomNav) {
-                BottomNavBar(navController = navController)
-            }
+                            currentRoute?.startsWith("home") == true ||
+                            currentRoute?.startsWith("music") == true ||
+                            currentRoute?.startsWith("mood_calendar") == true
+                if (showBottomNav) BottomNavBar(navController)
             }
         ) { innerPadding ->
 
@@ -73,71 +115,84 @@ fun MainNavHost() {
                 startDestination = "splash",
                 modifier = Modifier.padding(innerPadding)
             ) {
-                //  Splash & Auth
+
+                // AUTH SCREENS
                 composable("splash") { SplashScreen(navController) }
+
                 composable(
-                    route = "signin?created={created}",
-                    arguments = listOf(
-                        navArgument("created") { defaultValue = "false" }
-                    )
-                ) { backStackEntry ->
-                    val created = backStackEntry.arguments?.getString("created")?.toBoolean() ?: false
-                    SignInScreen(navController = navController, created = created)
+                    "signin?created={created}",
+                    arguments = listOf(navArgument("created") { defaultValue = "false" })
+                ) { back ->
+                    val created = back.arguments?.getString("created")?.toBoolean() ?: false
+                    SignInScreen(navController, created)
                 }
+
                 composable("signup") { SignUpScreen(navController) }
                 composable("forgotpassword") { ForgotPasswordScreen(navController) }
 
-                //  Home Tabs
-                composable("home") { HomeScreen(navController, listJurnal) }
+                composable("home") {
+                    HomeScreen(
+                        navController = navController,
+                        saveJournal = ::saveJournalToFirestore
+                    )
+                }
+                // TIPS SCREEN
+                composable("tips") {
+                    TipsScreen(
+                        onBack = { navController.popBackStack() }
+                    )
+                }
                 composable("music") {
                     MusicScreen(
                         clientId = "9ace244d481f48d5b34acea812017a62",
-                        clientSecret = "6bf846d587384642ae370f0700876276" //ini seharusnya rahasia deh tapi saya bingung kalo saya gak masukkin trus gmn :v
+                        clientSecret = "6bf846d587384642ae370f0700876276"
                     )
                 }
+
                 composable(
-                    route = "profile?edited={edited}",
-                    arguments = listOf(
-                        navArgument("edited") { defaultValue = "false" }
-                    )
-                ) { backStackEntry ->
-                    val edited = backStackEntry.arguments?.getString("edited")?.toBoolean() ?: false
-                    ProfileScreen(navController = navController, edited = edited)
+                    "profile?edited={edited}",
+                    arguments = listOf(navArgument("edited") { defaultValue = "false" })
+                ) { back ->
+                    val edited = back.arguments?.getString("edited")?.toBoolean() ?: false
+                    ProfileScreen(navController, edited)
                 }
 
                 composable("edit_profile") { EditProfileScreen(navController) }
                 composable("help_support") { HelpSupportScreen(navController) }
 
-                //  Journal List
+                // --------------------------------------------------
+                // JOURNAL LIST
+                // --------------------------------------------------
                 composable(
-                    route = "journal_list?added={added}&edited={edited}",
+                    "journal_list?added={added}&edited={edited}",
                     arguments = listOf(
                         navArgument("added") { defaultValue = "false" },
                         navArgument("edited") { defaultValue = "false" }
                     )
-                ) { backStackEntry ->
-                    val added = backStackEntry.arguments?.getString("added")?.toBoolean() ?: false
-                    val edited = backStackEntry.arguments?.getString("edited")?.toBoolean() ?: false
-
+                ) {
                     JournalListScreen(
                         navController = navController,
                         listJurnal = listJurnal,
-                        added = added,
-                        edited = edited,
+                        added = false,
+                        edited = false,
                         onAddClick = { navController.navigate("mood_picker") },
                         onDelete = { index ->
-                            if (index in listJurnal.indices) listJurnal.removeAt(index)
+                            val item = listJurnal.getOrNull(index) ?: return@JournalListScreen
+                            deleteJournalFromFirestore(item.id)
                         }
                     )
                 }
 
-                // Calendar
-                composable("mood_calendar") { MoodCalendarScreen(navController) }
-                // MoodMap
-                composable("mood_map") {
-                    MoodMapScreen(navController, listJurnal)
+                // MOOD SCREENS
+                composable("mood_calendar/{userId}") { backStackEntry ->
+                    val userId = backStackEntry.arguments?.getString("userId") ?: ""
+                    MoodCalendarScreen(
+                        navController = navController,
+                        userId = userId
+                    )
                 }
-                // Mood Picker ke Write Journal
+                //composable("mood_map") { MoodMapScreen(navController, listJurnal) }
+
                 composable("mood_picker") {
                     MoodPickerScreen(
                         onContinue = { emoji, mood ->
@@ -147,133 +202,81 @@ fun MainNavHost() {
                     )
                 }
 
+                // WRITE JOURNAL
                 composable(
                     "write_journal/{emoji}/{mood}",
                     arguments = listOf(
                         navArgument("emoji") { type = NavType.StringType },
                         navArgument("mood") { type = NavType.StringType }
                     )
-                ) { backStack ->
-                    val emoji = backStack.arguments?.getString("emoji") ?: "😐"
-                    val mood = backStack.arguments?.getString("mood") ?: "Neutral"
-                    val date = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date())
+                ) { back ->
+
+                    val emoji = back.arguments?.getString("emoji") ?: "😐"
+                    val mood = back.arguments?.getString("mood") ?: "Neutral"
+                    val date = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault())
+                        .format(Date())
 
                     WriteJournalScreen(
                         emoji = emoji,
                         mood = mood,
                         date = date,
+
                         onSave = { title, content, location, dateNow ->
-                            listJurnal.add(
-                                0,
-                                JurnalModel(
-                                    emoji = emoji,
-                                    mood = mood,
-                                    title = title,
-                                    content = content,
-                                    location = location,
-                                    date = dateNow
-                                )
-                            )
-                            navController.navigate("journal_list?added=true") {
-                                popUpTo("journal_list") { inclusive = true }
+                            saveJournalToFirestore(
+                                emoji, mood, title, content, location, dateNow
+                            ) {
+                                navController.navigate("journal_list?added=true") {
+                                    popUpTo("journal_list") { inclusive = true }
+                                }
                             }
                         },
+
                         onSkip = { dateNow ->
-                            listJurnal.add(
-                                0,
-                                JurnalModel(
-                                    emoji = emoji,
-                                    mood = mood,
-                                    title = "Untitled",
-                                    content = "",
-                                    location = "Unknown",
-                                    date = dateNow
-                                )
-                            )
-                            navController.navigate("journal_list") {
-                                popUpTo("journal_list") { inclusive = true }
+                            saveJournalToFirestore(
+                                emoji, mood, "", "", "", dateNow
+                            ) {
+                                navController.navigate("journal_list") {
+                                    popUpTo("journal_list") { inclusive = true }
+                                }
                             }
                         },
+
                         navController = navController
                     )
                 }
 
-                //  Journal Detail
+                // JOURNAL DETAIL
                 composable(
-                    "journal_detail/{title}/{content}/{date}/{emoji}/{location}?edited={edited}",
+                    "journal_detail/{id}?edited={edited}",
                     arguments = listOf(
-                        navArgument("title") { type = NavType.StringType },
-                        navArgument("content") { type = NavType.StringType },
-                        navArgument("date") { type = NavType.StringType },
-                        navArgument("emoji") { type = NavType.StringType },
-                        navArgument("location") { type = NavType.StringType },
-                        navArgument("edited") { defaultValue = "false" }
+                        navArgument("edited") { defaultValue = false }
                     )
-                ) { entry ->
-                    val title = entry.arguments?.getString("title") ?: ""
-                    val content = entry.arguments?.getString("content") ?: ""
-                    val date = entry.arguments?.getString("date") ?: ""
-                    val emoji = entry.arguments?.getString("emoji") ?: ""
-                    val location = entry.arguments?.getString("location") ?: ""
-                    val edited = entry.arguments?.getString("edited")?.toBoolean() ?: false
+                ) { back ->
+
+                    val journalId = back.arguments?.getString("id") ?: ""
+                    val edited = back.arguments?.getBoolean("edited") ?: false
 
                     JournalDetailScreen(
-                        title = title,
-                        content = content,
-                        date = date,
-                        emoji = emoji,
-                        location = location,
+                        journalId = journalId,
                         edited = edited,
                         navController = navController
                     )
                 }
 
-                // Edit Journal
+                // EDIT JOURNAL
+                // EDIT JOURNAL (FIXED)
                 composable(
-                    "edit_journal/{title}/{content}/{date}/{emoji}/{location}",
+                    "edit_journal/{id}",
                     arguments = listOf(
-                        navArgument("title") { type = NavType.StringType },
-                        navArgument("content") { type = NavType.StringType },
-                        navArgument("date") { type = NavType.StringType },
-                        navArgument("emoji") { type = NavType.StringType },
-                        navArgument("location") { type = NavType.StringType }
+                        navArgument("id") { type = NavType.StringType }
                     )
-                ) { entry ->
-                    val title = entry.arguments?.getString("title") ?: ""
-                    val content = entry.arguments?.getString("content") ?: ""
-                    val date = entry.arguments?.getString("date") ?: ""
-                    val emoji = entry.arguments?.getString("emoji") ?: ""
-                    val location = entry.arguments?.getString("location") ?: ""
+                ) { back ->
+
+                    val journalId = back.arguments?.getString("id") ?: ""
 
                     EditJournalScreen(
-                        title = title,
-                        content = content,
-                        date = date,
-                        emoji = emoji,
-                        location = location,
-                        navController = navController,
-                        onSave = { newTitle, newContent, newDate, newLocation ->
-                            val index = listJurnal.indexOfFirst { it.title == title && it.date == date }
-
-                            if (index != -1) {
-                                listJurnal[index] = listJurnal[index].copy(
-                                    title = newTitle,
-                                    content = newContent,
-                                    date = newDate,
-                                    location = newLocation,
-                                    isEdited = true
-                                )
-                            }
-
-                            // nnti dia lempar data ke detail
-                            navController.navigate(
-                                "journal_detail/$newTitle/$newContent/$newDate/$emoji/$newLocation?edited=true"
-                            ) {
-                                popUpTo("journal_detail/$title/$content/$date/$emoji/$location") {
-                                    inclusive = true
-                                }
-                            }
-                        }
+                        journalId = journalId,
+                        navController = navController
                     )
                 }
             }

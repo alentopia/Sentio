@@ -18,33 +18,45 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.testing.JurnalModel
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Date
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditJournalScreen(
-    title: String,
-    content: String,
-    date: String,
-    emoji: String,
-    location: String,
-    navController: NavController,
-    onSave: (String, String, String, String) -> Unit
-)
- {
-    var newTitle by remember { mutableStateOf(title) }
-    var newContent by remember { mutableStateOf(content) }
+    journalId: String,
+    navController: NavController
+) {
+    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+    val db = FirebaseFirestore.getInstance()
+
+    var journal by remember { mutableStateOf<JurnalModel?>(null) }
     var showConfirmDialog by remember { mutableStateOf(false) }
 
-    val mood = when (emoji) {
-        "😊" -> "Happy"
-        "😔" -> "Sad"
-        "😡" -> "Angry"
-        "😐" -> "Neutral"
-        "😍" -> "Loved"
-        else -> "Unknown"
+    // Load data dari Firebase
+    LaunchedEffect(journalId) {
+        db.collection("users")
+            .document(uid)
+            .collection("journals")
+            .document(journalId)
+            .get()
+            .addOnSuccessListener { snap ->
+                journal = snap.toObject(JurnalModel::class.java)?.copy(id = journalId)
+            }
     }
+
+    val data = journal ?: return Text("Loading...")
+
+    // Editable fields
+    var newTitle by remember { mutableStateOf(data.title) }
+    var newContent by remember { mutableStateOf(data.content) }
+
+    val mood = data.mood
+    val location = data.location
+
 
     Box(
         modifier = Modifier
@@ -94,26 +106,26 @@ fun EditJournalScreen(
                     .padding(horizontal = 20.dp, vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Card utama
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     shape = RoundedCornerShape(24.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .wrapContentHeight()
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
                         modifier = Modifier.padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+
                         OutlinedTextField(
                             value = mood,
                             onValueChange = {},
                             label = { Text("Mood") },
                             readOnly = true,
+                            enabled = false,
                             shape = RoundedCornerShape(12.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 disabledTextColor = Color.Gray,
@@ -121,7 +133,6 @@ fun EditJournalScreen(
                                 disabledLabelColor = Color(0xFF7D7A8B),
                                 disabledContainerColor = Color(0xFFF9F9F9)
                             ),
-                            enabled = false,
                             modifier = Modifier.fillMaxWidth()
                         )
 
@@ -161,6 +172,7 @@ fun EditJournalScreen(
                             onValueChange = {},
                             label = { Text("Location") },
                             readOnly = true,
+                            enabled = false,
                             shape = RoundedCornerShape(12.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 disabledTextColor = Color.Gray,
@@ -168,7 +180,6 @@ fun EditJournalScreen(
                                 disabledLabelColor = Color(0xFF7D7A8B),
                                 disabledContainerColor = Color(0xFFF9F9F9)
                             ),
-                            enabled = false,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -176,7 +187,6 @@ fun EditJournalScreen(
 
                 Spacer(modifier = Modifier.height(28.dp))
 
-                // Save button → buka dialog
                 Button(
                     onClick = { showConfirmDialog = true },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
@@ -206,7 +216,7 @@ fun EditJournalScreen(
             }
         }
 
-        // Dialog konfirmasi
+        // Confirm dialog — tetap UI kamu
         if (showConfirmDialog) {
             Box(
                 modifier = Modifier
@@ -218,64 +228,64 @@ fun EditJournalScreen(
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     shape = RoundedCornerShape(20.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth(0.85f)
-                        .wrapContentHeight()
-                        .padding(horizontal = 16.dp)
+                    modifier = Modifier.fillMaxWidth(0.85f)
                 ) {
                     Column(
-                        modifier = Modifier
-                            .padding(24.dp)
-                            .fillMaxWidth(),
+                        modifier = Modifier.padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
                             text = "Confirm Changes",
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF4B4453),
-                            fontSize = 18.sp,
+                            fontSize = 18.sp
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        Text(
+                            "Are you sure you want to save the changes?",
+                            fontSize = 14.sp,
+                            color = Color(0xFF555555),
                             textAlign = TextAlign.Center
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Are you sure you want to save the changes to this journal?",
-                            color = Color(0xFF666666),
-                            textAlign = TextAlign.Center,
-                            fontSize = 14.sp
-                        )
-                        Spacer(modifier = Modifier.height(24.dp))
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Spacer(Modifier.height(20.dp))
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             TextButton(
                                 onClick = { showConfirmDialog = false },
                                 modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Cancel", color = Color.Gray)
-                            }
+                            ) { Text("Cancel", color = Color.Gray) }
 
                             Button(
                                 onClick = {
                                     showConfirmDialog = false
 
-                                    // panggil callback biar data keupdate
-                                    onSave(newTitle, newContent, date, location)
+                                    val updateMap = mapOf(
+                                        "title" to newTitle,
+                                        "content" to newContent,
+                                        "isEdited" to true
+                                    )
 
-                                    /// balik ke detail
-                                    navController.navigate(
-                                        "journal_detail/${newTitle}/${newContent}/${date}/${emoji}/${location}?edited=true"
-                                    ) {
-                                        popUpTo("journal_detail/${title}/${content}/${date}/${emoji}/${location}") {
-                                            inclusive = true
+                                    db.collection("users")
+                                        .document(uid)
+                                        .collection("journals")
+                                        .document(journalId)
+                                        .update(updateMap)
+                                        .addOnSuccessListener {
+                                            navController.navigate("journal_detail/$journalId?edited=true") {
+                                                popUpTo("journal_detail/$journalId") { inclusive = true }
+                                            }
                                         }
-                                    }
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B4CFC)),
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(Color(0xFF8B4CFC))
                             ) {
-                                Text("Yes, Save", color = Color.White)
+                                Text("Save", color = Color.White)
                             }
-
                         }
                     }
                 }
@@ -283,3 +293,4 @@ fun EditJournalScreen(
         }
     }
 }
+

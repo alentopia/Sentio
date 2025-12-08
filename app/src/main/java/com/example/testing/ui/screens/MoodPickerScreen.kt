@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -49,11 +50,10 @@ import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
+import androidx.compose.ui.geometry.CornerRadius
 
 
-// ========================================================
-// CAMERA PERMISSION HELPER
-// ========================================================
+// Camera Permission Helper
 fun requestCameraPermission(context: android.content.Context, activity: Activity): Boolean {
     return if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
         != PackageManager.PERMISSION_GRANTED
@@ -103,7 +103,7 @@ fun MoodPickerScreen(
     val activity = context as Activity
 
 
-    // UI MAIN
+    // Ui Main
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -311,9 +311,31 @@ fun CameraPopup(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.5f)),
+            .background(Color.Black.copy(alpha = 0.5f))
+            .pointerInput(Unit) {
+                detectDragGestures { _, _ -> }
+            },
         contentAlignment = Alignment.Center
     ) {
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 130.dp)
+                .background(
+                    color = Color.Black.copy(alpha = 0.45f),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .padding(horizontal = 18.dp, vertical = 10.dp)
+        ) {
+            Text(
+                "Make sure your face is inside the frame!",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
         Card(
             modifier = Modifier
                 .fillMaxWidth(0.85f)
@@ -378,7 +400,7 @@ fun CameraPopup(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Close button
+                // TOMBOL CLOSE
                 IconButton(
                     onClick = onClose,
                     modifier = Modifier

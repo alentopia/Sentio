@@ -17,21 +17,29 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.testing.JurnalModel
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JournalDetailScreen(
-    title: String,
-    content: String,
-    date: String,
-    location: String,
-    emoji: String,
-    navController: NavController,
-    edited: Boolean = false
+    journalId: String,
+    edited: Boolean = false,
+    navController: NavController
 ) {
+    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+    val db = FirebaseFirestore.getInstance()
+
+    var journal by remember { mutableStateOf<JurnalModel?>(null) }
+
     val scrollState = rememberScrollState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+
+    // RANDOM QUOTE
     val quotes = listOf(
         "“Every emotion is valid — and every day is progress.”",
         "“You’re allowed to feel. You’re allowed to rest.”",
@@ -42,13 +50,28 @@ fun JournalDetailScreen(
         "“Even on cloudy days, the sun is still there.”",
         "“Your feelings are temporary, but your strength is lasting.”"
     )
-    val randomQuote = remember { quotes[Random.nextInt(quotes.size)] }
+    val randomQuote = remember { quotes.random() }
 
-    // Snackbar setup
-    val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
+    // LOAD DATA FIRESTORE
+    LaunchedEffect(journalId) {
+        db.collection("users")
+            .document(uid)
+            .collection("journals")
+            .document(journalId)
+            .get()
+            .addOnSuccessListener { doc ->
+                val item = doc.toObject(JurnalModel::class.java)
 
-    // Muncul otomatis kalau edited = true
+                if (item != null) {
+                    journal = item.copy(
+                        id = doc.id,
+                        date = doc.getString("createdAt") ?: item.date   // ⭐ FIX DI SINI
+                    )
+                }
+            }
+    }
+
+    // SNACKBAR WHEN EDITED
     LaunchedEffect(edited) {
         if (edited) {
             coroutineScope.launch {
@@ -57,10 +80,12 @@ fun JournalDetailScreen(
         }
     }
 
+    val data = journal ?: return Text("Loading...")
+
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
-        // Tombol atas
+        // TOP BUTTONS
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -73,8 +98,7 @@ fun JournalDetailScreen(
                     popUpTo("journal_list") { inclusive = true }
                 }
             }) {
-
-            Icon(
+                Icon(
                     imageVector = Icons.Default.ArrowBack,
                     contentDescription = "Back",
                     tint = Color(0xFF8B4CFC)
@@ -83,10 +107,7 @@ fun JournalDetailScreen(
 
             IconButton(
                 onClick = {
-                    // Navigasi ke edit screen
-                    navController.navigate(
-                        "edit_journal/${title}/${content}/${date}/${emoji}/${location}"
-                    )
+                    navController.navigate("edit_journal/${data.id}")
                 }
             ) {
                 Icon(
@@ -97,7 +118,7 @@ fun JournalDetailScreen(
             }
         }
 
-        // Isi konten jurnal
+        // CONTENT
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -105,24 +126,26 @@ fun JournalDetailScreen(
                 .verticalScroll(scrollState),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = emoji, fontSize = 70.sp)
+            Text(text = data.emoji, fontSize = 70.sp)
             Spacer(modifier = Modifier.height(6.dp))
+
             Text(
-                text = title,
+                text = data.title,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF44345C)
             )
             Spacer(modifier = Modifier.height(4.dp))
+
             Text(
-                text = "$location • $date",
+                text = "${data.location} • ${data.date}",
                 fontSize = 13.sp,
                 color = Color(0xFF7D7A8B)
             )
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Box isi jurnal
+            // JOURNAL CONTENT BOX
             Surface(
                 shape = RoundedCornerShape(24.dp),
                 shadowElevation = 6.dp,
@@ -137,7 +160,7 @@ fun JournalDetailScreen(
                         .fillMaxWidth()
                 ) {
                     Text(
-                        text = content.ifBlank { "No journal content written." },
+                        text = data.content.ifBlank { "No journal content written." },
                         fontSize = 16.sp,
                         color = Color(0xFF444444),
                         lineHeight = 22.sp
@@ -147,7 +170,7 @@ fun JournalDetailScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Random quote
+            // RANDOM QUOTE
             Text(
                 text = randomQuote,
                 fontSize = 14.sp,
@@ -157,7 +180,7 @@ fun JournalDetailScreen(
             )
         }
 
-        // Snackbar transparan hijau di bawah layar
+        // SNACKBAR
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier

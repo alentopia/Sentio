@@ -50,8 +50,7 @@ fun EditProfileScreen(navController: NavController) {
             profileImageUri = uri
         }
     }
-
-    // State data profil
+    // State data profile
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }

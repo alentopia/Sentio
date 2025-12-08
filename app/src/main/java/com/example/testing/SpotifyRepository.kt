@@ -25,13 +25,21 @@ class SpotifyRepository(
         .build()
         .create(SpotifyWebApi::class.java)
 
+    // Masih bisa dipakai kalau mau default playlist
     suspend fun getMyPlaylist(): PlaylistResponse = withContext(Dispatchers.IO) {
-        val token = getValidToken() // pakai client_credentials
-        val response = webApi.getPlaylist("Bearer $token", "04vFVSHKvDSOVC16f2QDtH") // ID playlist
+        val token = getValidToken()
+        val response = webApi.getPlaylist("Bearer $token", "04vFVSHKvDSOVC16f2QDtH")
         println(" Playlist: ${response.name}, ${response.tracks.items.size} lagu")
         response
     }
 
+    // 👉 Fungsi baru: ambil playlist by ID (buat mood-based)
+    suspend fun getPlaylistById(playlistId: String): PlaylistResponse = withContext(Dispatchers.IO) {
+        val token = getValidToken()
+        val response = webApi.getPlaylist("Bearer $token", playlistId)
+        println(" Playlist ($playlistId): ${response.name}, ${response.tracks.items.size} lagu")
+        response
+    }
 
     private suspend fun getValidToken(): String {
         val now = System.currentTimeMillis()
