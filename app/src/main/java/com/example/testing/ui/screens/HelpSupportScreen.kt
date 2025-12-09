@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,13 +27,12 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.launch
 
-
-// ===============================
 // DATA MODEL
-// ===============================
 data class SupportTicket(
     val title: String = "",
     val content: String = "",
@@ -40,10 +40,7 @@ data class SupportTicket(
     val createdAt: Timestamp = Timestamp.now()
 )
 
-
-// ===============================
 // FIRESTORE – SAVE SUPPORT TICKET
-// ===============================
 fun sendSupportTicket(
     userId: String,
     title: String,
@@ -68,10 +65,7 @@ fun sendSupportTicket(
         .addOnFailureListener { onResult(false) }
 }
 
-
-// ===============================
 // STORAGE – UPLOAD IMAGE
-// ===============================
 fun uploadSupportImage(uri: Uri, userId: String, onUploaded: (String?) -> Unit) {
 
     val storageRef = FirebaseStorage.getInstance().reference
@@ -86,14 +80,15 @@ fun uploadSupportImage(uri: Uri, userId: String, onUploaded: (String?) -> Unit) 
         .addOnFailureListener { onUploaded(null) }
 }
 
-
-// ===============================
 // MAIN SCREEN
-// ===============================
 @Composable
 fun HelpSupportScreen(navController: NavController) {
 
     var showDialog by remember { mutableStateOf(false) }
+    val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     Box(
         modifier = Modifier
@@ -107,6 +102,7 @@ fun HelpSupportScreen(navController: NavController) {
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+
             // HEADER
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -139,7 +135,6 @@ fun HelpSupportScreen(navController: NavController) {
             Spacer(Modifier.height(12.dp))
 
             Text("Need some help?", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-
             Text(
                 "Find quick answers or contact our team.",
                 color = Color.Gray,
@@ -149,7 +144,7 @@ fun HelpSupportScreen(navController: NavController) {
 
             Spacer(Modifier.height(28.dp))
 
-            // FAQ SECTION (KEMBALI MUNCUL)
+            // FAQ SECTION
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.large,
@@ -197,12 +192,34 @@ fun HelpSupportScreen(navController: NavController) {
                 Text("Contact Support", color = Color.White)
             }
         }
+
+        // SNACKBAR
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 20.dp),
+            snackbar = { snackbarData ->
+                Surface(
+                    color = Color(0xFFE8F8F0).copy(alpha = 0.95f), // hijau pastel
+                    shape = RoundedCornerShape(16.dp),
+                    shadowElevation = 0.dp
+                ) {
+                    Text(
+                        text = snackbarData.visuals.message,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+                        color = Color(0xFF3C755F), // hijau gelap
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        )
+
     }
 
-    // DIALOG + BACKGROUND BLUR
+    // SHOW DIALOG
     if (showDialog) {
-
-        // BACKGROUND BLUR
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -211,16 +228,18 @@ fun HelpSupportScreen(navController: NavController) {
         )
 
         ContactSupportDialog(
-            userId = "YOUR_USER_ID",
-            onDismiss = { showDialog = false }
+            userId = userId,
+            onDismiss = { showDialog = false },
+            onSuccess = {
+                scope.launch {
+                    snackbarHostState.showSnackbar("Ticket sent successfully!")
+                }
+            }
         )
     }
 }
 
-
-// ===============================
 // FAQ ITEM COMPONENT
-// ===============================
 @Composable
 fun FAQItem(question: String, answer: String) {
     Column(modifier = Modifier.padding(bottom = 16.dp)) {
@@ -230,32 +249,36 @@ fun FAQItem(question: String, answer: String) {
     }
 }
 
-
-
-// ALERT DIALOG (TETAP SAMA TAPI AESTHETIC)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContactSupportDialog(
     userId: String,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSuccess: () -> Unit,
 ) {
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
-    var selectedImage by remember { mutableStateOf<Uri?>(null) }
+    var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var isSending by remember { mutableStateOf(false) }
 
-    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) {
-        selectedImage = it
+    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null && images.size < 3) {
+            images = images + uri
+        }
     }
 
     AlertDialog(
         onDismissRequest = { if (!isSending) onDismiss() },
+        confirmButton = {},
+        modifier = Modifier.clip(RoundedCornerShape(22.dp)),
+        containerColor = Color.White,
+        titleContentColor = Color.Black,
+        textContentColor = Color.Black,
         title = {
             Text("Contact Support", fontWeight = FontWeight.Bold, fontSize = 20.sp)
         },
-        confirmButton = {},
         text = {
-            Column(Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth()) {
 
                 OutlinedTextField(
                     value = title,
@@ -263,63 +286,94 @@ fun ContactSupportDialog(
                     label = { Text("Title") },
                     modifier = Modifier.fillMaxWidth()
                 )
+
                 Spacer(Modifier.height(12.dp))
 
                 OutlinedTextField(
                     value = content,
                     onValueChange = { content = it },
                     label = { Text("Describe your problem") },
-                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
                     maxLines = 5
                 )
-                Spacer(Modifier.height(12.dp))
 
-                Button(
-                    onClick = { pickImage.launch("image/*") },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B4CFC)),
-                    modifier = Modifier.fillMaxWidth()
+                Spacer(Modifier.height(14.dp))
+
+                Text("Attach Images (optional)", fontWeight = FontWeight.SemiBold)
+
+                Spacer(Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Attach Image", color = Color.White)
+
+                    if (images.size < 3) {
+                        Box(
+                            modifier = Modifier
+                                .size(90.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFAB95D3))
+                                .clickable { pickImage.launch("image/*") },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    imageVector = Icons.Default.Help,
+                                    contentDescription = null,
+                                    tint = Color(0xFF8B4CFC),
+                                    modifier = Modifier.size(30.dp)
+                                )
+                                Text("${images.size}/3")
+                            }
+                        }
+                    }
+
+                    images.forEach { uri ->
+                        Box(
+                            modifier = Modifier
+                                .size(90.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                        ) {
+                            AsyncImage(
+                                model = uri,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
                 }
 
-                selectedImage?.let {
-                    Spacer(Modifier.height(10.dp))
-                    AsyncImage(
-                        model = it,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                    )
-                }
-
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(20.dp))
 
                 Button(
                     onClick = {
                         if (title.isNotEmpty() && content.isNotEmpty()) {
-
                             isSending = true
 
-                            if (selectedImage != null) {
-                                uploadSupportImage(selectedImage!!, userId) { url ->
+                            if (images.isNotEmpty()) {
+
+                                uploadSupportImage(images[0], userId) { url ->
                                     sendSupportTicket(userId, title, content, url) {
                                         isSending = false
                                         onDismiss()
+                                        onSuccess()
                                     }
                                 }
+
                             } else {
                                 sendSupportTicket(userId, title, content, null) {
                                     isSending = false
                                     onDismiss()
+                                    onSuccess()
                                 }
                             }
-
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B4CFC)),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B4CFC))
                 ) {
                     if (isSending) {
                         CircularProgressIndicator(

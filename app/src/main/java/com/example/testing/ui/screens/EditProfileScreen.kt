@@ -29,6 +29,7 @@ import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -339,6 +340,8 @@ fun EditProfileScreen(navController: NavController) {
                                             val storageRef = storage.reference.child("profile_images/$userId.jpg")
                                             storageRef.putFile(profileImageUri!!).await()
                                             finalImageUrl = storageRef.downloadUrl.await().toString()
+
+                                            profileImageUrl = finalImageUrl      // <<< FIX DI SINI
                                         }
 
                                         // Update profile data ke Firestore
@@ -350,7 +353,10 @@ fun EditProfileScreen(navController: NavController) {
                                             "updatedAt" to com.google.firebase.Timestamp.now()
                                         )
 
-                                        db.collection("users").document(userId).update(updates).await()
+                                        db.collection("users")
+                                            .document(userId)
+                                            .set(updates, SetOptions.merge())
+                                            .await()
 
                                         // Update password jika ada
                                         if (password.isNotBlank()) {

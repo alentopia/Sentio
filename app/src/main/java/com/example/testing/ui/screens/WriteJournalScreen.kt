@@ -270,6 +270,12 @@ fun WriteJournalScreen(
                             if (manualLocation.isNotBlank()) manualLocation else "Unknown location"
 
                         onSave(journalTitle, journalText, finalLocation, currentDate)
+
+                        navController?.previousBackStackEntry
+                            ?.savedStateHandle
+                            ?.set("added", true)
+
+                        navController?.popBackStack()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B4CFC)),
                     shape = RoundedCornerShape(24.dp),

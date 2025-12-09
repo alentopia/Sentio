@@ -1,11 +1,4 @@
 package com.example.testing.ui.screens
-
-import android.Manifest
-import android.R.attr.progress
-import android.os.Build
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -14,6 +7,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,27 +15,22 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -368,14 +357,14 @@ fun HomeScreen(
                         )
                 }
             )
-
-            SpeciallyForYouSection(
-                {
-                    navController?.navigate("mood_picker")
-                },
-                onTips = { journalId ->
-                    navController.navigate("tips/$journalId")
-                }
+            Text(
+                "Your Journey",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF020202),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, bottom = 6.dp)
             )
 
             ViewCalendarButton(onClick = {
@@ -389,20 +378,28 @@ fun HomeScreen(
                     navController?.navigate("mood_picker")
                 }
             )
-        }
-        if (showGoalDialog) {
-            GoalDialog(
-                onSave = { selectedNum, allowNotif ->
-                    saveGoalToFirestore(
-                        goal = "Write a journal $selectedNum times this week",
-                        targetDays = selectedNum
-                    )
 
-                    showGoalDialog = false
+            SpeciallyForYouSection(
+                {
+                    navController?.navigate("mood_picker")
                 },
-                onDismiss = { showGoalDialog = false }
+                onTips = {
+                    navController?.navigate("tips")
+                }
             )
+            if (showGoalDialog) {
+                GoalDialog(
+                    onSave = { selectedNum, allowNotif ->
+                        saveGoalToFirestore(
+                            goal = "Write a journal $selectedNum times this week",
+                            targetDays = selectedNum
+                        )
 
+                        showGoalDialog = false
+                    },
+                    onDismiss = { showGoalDialog = false }
+                )
+            }
         }
     }
 }
@@ -809,63 +806,55 @@ fun LatestMoodSection(
 ) {
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White.copy(alpha = 0.95f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 24.dp, horizontal = 16.dp),
+                .padding(vertical = 12.dp, horizontal = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
 
-            // ============================
-            // CASE 1 → TIDAK ADA MOOD SAMA SEKALI
-            // ============================
             if (latestMood.isBlank()) {
-
                 Text(
                     text = "You haven't written any journal yet.",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF4B3A64),
+                    color = Color(0xFF444444),
                     textAlign = TextAlign.Center
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Start your first one today! 💫",
+                    text = "Start your first one today!",
                     fontSize = 14.sp,
-                    color = Color(0xFF8B4CFC)
+                    color = Color(0xFF8B4CFC),
+                    fontWeight = FontWeight.SemiBold
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Button(
-                    onClick = onStartJournal,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B4CFC))
-                ) {
-                    Text("Write Journal", color = Color.White)
-                }
+                Spacer(modifier = Modifier.height(12.dp))
 
                 return@Column
             }
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "Your current mood is:",
-                fontSize = 15.sp,
-                color = Color(0xFF6A5A95),
+                text = "Your latest mood",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF222222),
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             val emoji = when (latestMood) {
                 "Happy" -> "😊"
@@ -877,28 +866,29 @@ fun LatestMoodSection(
                 else -> "🙂"
             }
 
-            Text(text = emoji, fontSize = 50.sp)
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Text(text = emoji, fontSize = 45.sp)
+
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                 text = latestMood,
-                fontSize = 20.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF4A3AFF)
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
         }
     }
 }
-
 
 @Composable
 fun ViewCalendarButton(onClick: () -> Unit) {
     Card(
         onClick = onClick,
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp),
+            .fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
@@ -949,85 +939,83 @@ fun SpeciallyForYouSection(
     onTips: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-
         Text(
-            text = "Specially for you",
-            fontWeight = FontWeight.Bold,
-            fontSize = 22.sp,
-            color = Color(0xFF3A2C5F),
-            modifier = Modifier.padding(start = 7.dp, bottom = 12.dp)
+            "For You",
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 20.sp,
+            color = Color(0xFF1a0a2e),
+            modifier = Modifier.padding(bottom = 14.dp)
         )
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-
-            // CARD 1 — Quick Journaling
             SpecialCard(
-                title = "Quick Journal",
-                emoji = "✍️",
-                bgColor = Color(0xFFFFFFFF),
-                onClick = onQuickJournal
+                title = "Quick Write",
+                icon = "✍️",
+                subtitle = "Journal now",
+                onClick = onQuickJournal,
+                modifier = Modifier.weight(1f)
             )
-
-            // CARD 2 — Tips for you
             SpecialCard(
-                title = "Tips for you",
-                emoji = "💡",
-                bgColor = Color(0xFFFFFFFF),
-                onClick = onTips
+                title = "AI Tips",
+                icon = "💡",
+                subtitle = "Get insights",
+                onClick = onTips,
+                modifier = Modifier.weight(1f)
             )
         }
     }
 }
+
 @Composable
 fun SpecialCard(
     title: String,
-    emoji: String,
-    bgColor: Color,
-    onClick: () -> Unit
+    icon: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier
-            .width(180.dp)
-            .height(140.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = bgColor),
-        elevation = CardDefaults.cardElevation(2.dp)
+        modifier = modifier
+            .height(150.dp)
+            .shadow(3.dp, RoundedCornerShape(24.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = rememberRipple()
+            ) { onClick() },
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(18.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-
-            Text(
-                text = emoji,
-                fontSize = 32.sp,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-
-            // TITLE
-            Text(
-                title,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                color = Color(0xFF3A2C5F)
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ArrowForward,
-                    contentDescription = null,
-                    tint = Color(0xFF8B4CFC)
+            Text(icon, fontSize = 36.sp)
+            Column {
+                Text(
+                    title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = Color(0xFF1a0a2e)
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    subtitle,
+                    fontSize = 12.sp,
+                    color = Color(0xFF7d6b99),
+                    fontWeight = FontWeight.Medium
                 )
             }
+            Icon(
+                imageVector = Icons.Default.ArrowForward,
+                contentDescription = null,
+                tint = Color(0xFF8B4CFC),
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }

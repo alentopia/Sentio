@@ -126,7 +126,9 @@ fun MainNavHost() {
                     val created = back.arguments?.getString("created")?.toBoolean() ?: false
                     SignInScreen(navController, created)
                 }
-
+                composable("security_settings") { SecuritySettingsScreen(navController) }
+                composable("change_password") { ChangePasswordScreen(navController) }
+                composable("change_email") { ChangeEmailScreen(navController) }
                 composable("signup") { SignUpScreen(navController) }
                 composable("forgotpassword") { ForgotPasswordScreen(navController) }
 
@@ -160,9 +162,7 @@ fun MainNavHost() {
                 composable("edit_profile") { EditProfileScreen(navController) }
                 composable("help_support") { HelpSupportScreen(navController) }
 
-                // --------------------------------------------------
                 // JOURNAL LIST
-                // --------------------------------------------------
                 composable(
                     "journal_list?added={added}&edited={edited}",
                     arguments = listOf(

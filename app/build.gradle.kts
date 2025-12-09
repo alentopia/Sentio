@@ -54,7 +54,6 @@ android {
 
 
 dependencies {
-    implementation("com.google.ai:client-generativeai:0.9.0")
     implementation("com.google.android.libraries.places:places:3.3.0")
     implementation("com.google.android.gms:play-services-maps:18.2.0")
     implementation("com.google.maps.android:maps-compose:2.11.4")

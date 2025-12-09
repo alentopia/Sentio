@@ -52,7 +52,8 @@ fun ProfileScreen(navController: NavController, edited: Boolean = false) {
     var userName by remember { mutableStateOf("Unknown User") }
 
     val journals = remember { mutableStateListOf<JurnalModel>() }
-
+    var profileImageUrl by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(true) }
     var journalCount by remember { mutableStateOf(0) }
     var totalMood by remember { mutableStateOf(0) }
     var goalsCompleted by remember { mutableStateOf(0) }
@@ -62,14 +63,17 @@ fun ProfileScreen(navController: NavController, edited: Boolean = false) {
         currentUser?.uid?.let { uid ->
             firestore.collection("users")
                 .document(uid)
-                .get()
-                .addOnSuccessListener { doc ->
-                    userName = doc.getString("name") ?: "Unknown User"
+                .addSnapshotListener { doc, _ ->
+                    if (doc != null) {
+                        userName = doc.getString("name") ?: "Unknown User"
+                        profileImageUrl = doc.getString("profileImage") ?: ""
+                    }
+                    isLoading = false
                 }
         }
     }
 
-    // Load Journals EXACT same logic as HomeScreen
+    // Load Journals
     LaunchedEffect(Unit) {
         val uid = currentUser?.uid ?: return@LaunchedEffect
 
@@ -132,6 +136,15 @@ fun ProfileScreen(navController: NavController, edited: Boolean = false) {
             .fillMaxSize()
             .padding(horizontal = 24.dp, vertical = 16.dp)
     ) {
+        if (isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = Color(0xFF8B4CFC))
+            }
+            return
+        }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -145,9 +158,9 @@ fun ProfileScreen(navController: NavController, edited: Boolean = false) {
 
                 Image(
                     painter = rememberAsyncImagePainter(
-                        model = user?.photoUrl
-                            ?: "https://cdn-icons-png.flaticon.com/512/847/847969.png"
-                    ),
+                        model = if (profileImageUrl.isNotEmpty()) profileImageUrl
+                        else "https://cdn-icons-png.flaticon.com/512/847/847969.png"
+                ),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -164,10 +177,9 @@ fun ProfileScreen(navController: NavController, edited: Boolean = false) {
                     color = Color(0xFF2C2C2C)
                 )
 
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(5.dp))
             }
 
-            // === STATS ===
             item {
                 ProfileStatsRow(
                     journalCount = journalCount,

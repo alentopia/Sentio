@@ -58,13 +58,10 @@ class TFLiteMoodClassifier(context: Context) {
             }
         }
 
-        // ------------ OUTPUT = UINT8 ------------
+        // OUTPUT = UINT8
         val output = Array(1) { ByteArray(numClasses) }
-
         interpreter.run(input, output)
-
         val probs = output[0].map { it.toInt() and 0xFF }
-
         return probs.indices.maxBy { probs[it] }
     }
 }
