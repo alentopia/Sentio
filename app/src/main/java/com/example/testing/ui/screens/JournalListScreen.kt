@@ -128,7 +128,8 @@ fun JournalListScreen(
     var isFirstLoadDone by remember { mutableStateOf(false) }
     val added = navController.currentBackStackEntry
         ?.savedStateHandle
-        ?.get<Boolean>("added") ?: false
+        ?.get<String>("added")
+        ?.toBoolean() ?: false
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
